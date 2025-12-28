@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DADO FUGITIVO - SPIRITA</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body{
+      font-family: 'Montserrat', sans-serif;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+      color:#fff;
+    }
+
+    /* Loading Screen */
+    .loading-screen{
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      z-index:9999;
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+    .loading-screen.hidden{ opacity:0; visibility:hidden; }
+    .loading-logo{ width:180px; height:auto; margin-bottom:30px; animation: logoFloat 2s ease-in-out infinite; }
+    @keyframes logoFloat{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+    .loading-title{
+      font-family:'Playfair Display', serif;
+      font-size:2rem; color:#d4af37; margin-bottom:30px;
+      text-shadow: 0 0 20px rgba(212,175,55,0.5);
+    }
+    .loading-bar-container{
+      width:280px; height:8px; background: rgba(255,255,255,0.1);
+      border-radius:4px; overflow:hidden; border: 1px solid rgba(212,175,55,0.3);
+    }
+    .loading-bar{
+      height:100%; width:0%;
+      background: linear-gradient(90deg, #d4af37, #f4d03f, #d4af37);
+      border-radius:4px;
+      transition: width 0.3s ease;
+    }
+    .loading-text{ margin-top:15px; color: rgba(255,255,255,0.6); font-size:0.9rem; }
+
+    /* Main Container */
+    .game-container{
+      max-width:900px; margin:0 auto; padding:20px;
+      min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+    }
+
+    /* Header */
+    .header{ text-align:center; margin-bottom:20px; width:100%; }
+    .logo{ width:120px; height:auto; margin-bottom:15px; }
+    .game-title{
+      font-family:'Playfair Display', serif;
+      font-size: clamp(1.8rem, 5vw, 2.8rem);
+      font-weight:900;
+      margin:20px 0 10px;
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 50%, #d4af37 100%);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color: transparent;
+      background-clip:text;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+    .game-subtitle{ color: rgba(255,255,255,0.7); font-size:1rem; max-width:400px; margin:0 auto; }
+
+    /* Game Area */
+    .game-area{
+      width:100%; max-width:600px; aspect-ratio: 4/3;
+      background: linear-gradient(180deg, #0d4d0d 0%, #0a3d0a 50%, #073007 100%);
+      border-radius:20px; position:relative; overflow:hidden;
+      border: 8px solid;
+      border-image: linear-gradient(135deg, #8B4513 0%, #d4af37 25%, #8B4513 50%, #d4af37 75%, #8B4513 100%) 1;
+      box-shadow:
+        0 0 0 4px #5c3317,
+        0 10px 40px rgba(0,0,0,0.5),
+        inset 0 0 100px rgba(0,0,0,0.3);
+    }
+    .felt-texture{
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      background-image:
+        radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, transparent 70%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+      pointer-events:none;
+    }
+    #game-canvas{ width:100%; height:100%; display:block; }
+
+    /* Status */
+    .status-display{
+      position:absolute; top:15px; left:50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(0,0,0,0.8) 0%, rgba(26,26,46,0.9) 100%);
+      padding: 10px 25px;
+      border-radius: 25px;
+      border:2px solid #d4af37;
+      font-weight:600; color:#d4af37; font-size:0.9rem;
+      text-align:center; z-index:10;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+
+    /* Controls */
+    .controls{
+      width:100%;
+      max-width:600px;
+      margin-top:25px;
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    .play-btn{
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 50%, #d4af37 100%);
+      border:none;
+      padding: 18px 50px;
+      font-size:1.2rem;
+      font-weight:700;
+      color:#1a1a2e;
+      border-radius:50px;
+      cursor:pointer;
+      text-transform:uppercase;
+      letter-spacing:2px;
+      box-shadow:
+        0 6px 20px rgba(212,175,55,0.4),
+        inset 0 2px 0 rgba(255,255,255,0.3),
+        inset 0 -2px 0 rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .play-btn::before{
+      content:'';
+      position:absolute; top:0; left:-100%; width:100%; height:100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: left 0.5s ease;
+    }
+    .play-btn:hover::before{ left:100%; }
+    .play-btn:hover{ transform: translateY(-3px); box-shadow: 0 10px 30px rgba(212,175,55,0.5); }
+    .play-btn:disabled{
+      background: linear-gradient(135deg, #666 0%, #888 50%, #666 100%);
+      cursor:not-allowed; transform:none; box-shadow:none;
+    }
+
+    /* Prize Display */
+    .prize-display{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:15px;
+      width:100%;
+      max-width:400px;
+      margin:20px auto 0;
+    }
+    .prize-card{
+      background: linear-gradient(135deg, rgba(26,92,26,0.6) 0%, rgba(13,61,13,0.8) 100%);
+      border:2px solid rgba(212,175,55,0.5);
+      border-radius:12px;
+      padding:15px;
+      text-align:center;
+    }
+    .prize-card.win{
+      border-color:#d4af37;
+      background: linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(139,69,19,0.3) 100%);
+    }
+    .prize-card.lose{ border-color: rgba(255,255,255,0.3); }
+    .prize-icon{ font-size:2rem; margin-bottom:5px; }
+    .prize-label{ font-size:0.75rem; color: rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:1px; }
+    .prize-value{ font-size:1.3rem; font-weight:700; color:#d4af37; margin-top:5px; }
+
+    /* Instructions */
+    .instructions{
+      background: linear-gradient(135deg, rgba(26,92,26,0.4) 0%, rgba(13,61,13,0.6) 100%);
+      border:1px solid rgba(212,175,55,0.3);
+      border-radius:15px;
+      padding:20px;
+      margin-top:25px;
+      text-align:center;
+      max-width:500px;
+    }
+    .instructions h3{ color:#d4af37; font-size:1rem; margin-bottom:15px; font-weight:600; }
+    .instructions p{ color: rgba(255,255,255,0.7); font-size:0.9rem; line-height:1.6; margin-bottom:8px; }
+
+    /* Modal */
+    .modal-overlay{
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.85);
+      display:none;
+      justify-content:center;
+      align-items:center;
+      z-index:1000;
+      backdrop-filter: blur(5px);
+    }
+    .modal-overlay.active{ display:flex; }
+    .modal-content{
+      background: linear-gradient(135deg, #1a1a2e 0%, #0a0a0a 100%);
+      border:3px solid #d4af37;
+      border-radius:25px;
+      padding:40px;
+      text-align:center;
+      max-width:400px;
+      width:90%;
+      box-shadow:
+        0 0 50px rgba(212,175,55,0.3),
+        0 20px 60px rgba(0,0,0,0.5);
+      animation: modalPop 0.5s ease;
+    }
+    @keyframes modalPop{
+      0%{transform: scale(0.5); opacity:0;}
+      70%{transform: scale(1.05);}
+      100%{transform: scale(1); opacity:1;}
+    }
+    .modal-icon{ font-size:4rem; margin-bottom:20px; }
+    .modal-title{ font-family:'Playfair Display', serif; font-size:2rem; color:#d4af37; margin-bottom:15px; }
+    .modal-prize{
+      font-size:2.5rem;
+      font-weight:700;
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color: transparent;
+      background-clip:text;
+      margin-bottom:20px;
+    }
+    .modal-message{ color: rgba(255,255,255,0.7); font-size:1rem; margin-bottom:25px; }
+    .modal-btn{
+      background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+      border:none;
+      padding: 15px 40px;
+      font-size:1rem;
+      font-weight:700;
+      color:#1a1a2e;
+      border-radius:30px;
+      cursor:pointer;
+      text-transform:uppercase;
+      letter-spacing:1px;
+      transition: all 0.3s ease;
+    }
+    .modal-btn:hover{ transform: translateY(-2px); box-shadow: 0 5px 20px rgba(212,175,55,0.4); }
+
+    /* Confetti */
+    .confetti{ position:fixed; top:-10px; z-index:1001; pointer-events:none; }
+
+    /* Ambient Particles */
+    .ambient-particles{
+      position:fixed; top:0; left:0; width:100%; height:100%;
+      pointer-events:none;
+      z-index:-1;
+      overflow:hidden;
+    }
+    .ambient-particle{
+      position:absolute; width:4px; height:4px;
+      background:#d4af37;
+      border-radius:50%;
+      opacity:0.3;
+      animation: float 8s infinite ease-in-out;
+    }
+    @keyframes float{
+      0%,100%{transform: translateY(100vh) rotate(0deg); opacity:0;}
+      10%{opacity:0.3;}
+      90%{opacity:0.3;}
+      100%{transform: translateY(-100px) rotate(720deg); opacity:0;}
+    }
+
+    /* Cup hint */
+    .cup-highlight{
+      position:absolute; bottom:20px; left:50%;
+      transform: translateX(-50%);
+      color:#d4af37;
+      font-size:0.9rem;
+      font-weight:600;
+      opacity:0;
+      transition: opacity 0.3s ease;
+      pointer-events:none;
+      z-index:10;
+    }
+    .cup-highlight.visible{ opacity:1; }
+
+    /* Audio hint */
+    .audio-hint{
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.65);
+      display:none;
+    }
+    .audio-hint.show{ display:block; }
+
+    @media (max-width: 768px){
+      .game-container{ padding:15px; }
+      .game-area{ aspect-ratio:1/1; }
+      .logo{ width:100px; }
+      .play-btn{ padding:15px 40px; font-size:1rem; }
+      .prize-display{ gap:10px; }
+      .prize-card{ padding:12px; }
+      .prize-icon{ font-size:1.5rem; }
+      .prize-value{ font-size:1.1rem; }
+      .modal-content{ padding:30px 20px; }
+      .modal-title{ font-size:1.5rem; }
+      .modal-prize{ font-size:2rem; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <img src="assets/image.png" alt="Arkana Games" class="loading-logo" crossorigin="anonymous">
+    <div class="loading-title">DADO FUGITIVO</div>
+    <div class="loading-bar-container">
+      <div class="loading-bar" id="loadingBar"></div>
+    </div>
+    <div class="loading-text" id="loadingText">Preparando la mesa...</div>
+  </div>
+
+  <!-- Ambient Particles -->
+  <div class="ambient-particles" id="ambientParticles"></div>
+
+  <!-- Main Game -->
+  <div class="game-container" id="gameContainer" style="display:none;">
+    <header class="header">
+      <img src="assets/image.png" alt="Arkana Games" class="logo" crossorigin="anonymous">
+      <h1 class="game-title">DADO FUGITIVO</h1>
+      <p class="game-subtitle">Sigue el dado con la mirada y adivina bajo que vaso se esconde</p>
+    </header>
+
+    <div class="game-area" id="gameArea">
+      <div class="felt-texture"></div>
+      <canvas id="game-canvas"></canvas>
+      <div class="status-display" id="statusDisplay">Presiona JUGAR para comenzar</div>
+      <div class="cup-highlight" id="cupHighlight">Haz clic en un vaso</div>
+    </div>
+
+    <div class="controls">
+      <button class="play-btn" id="playBtn">JUGAR</button>
+      <div class="audio-hint" id="audioHint">🔊 Toca cualquier parte una vez para habilitar el sonido</div>
+
+      <div class="prize-display">
+        <div class="prize-card win">
+          <div class="prize-icon">🎯</div>
+          <div class="prize-label">Si aciertas</div>
+          <div class="prize-value">BONO 150%</div>
+        </div>
+        <div class="prize-card lose">
+          <div class="prize-icon">🎁</div>
+          <div class="prize-label">Premio consuelo</div>
+          <div class="prize-value">BONO 100%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="instructions">
+      <h3>Como Jugar</h3>
+      <p>1. Observa bajo que vaso se coloca el dado dorado</p>
+      <p>2. Los vasos se mezclaran rapidamente</p>
+      <p>3. Cuando se detengan, selecciona el vaso correcto</p>
+      <p>4. Acierta y gana el BONO 150%</p>
+    </div>
+  </div>
+
+  <!-- Result Modal -->
+  <div class="modal-overlay" id="resultModal">
+    <div class="modal-content">
+      <div class="modal-icon" id="modalIcon">🎲</div>
+      <h2 class="modal-title" id="modalTitle">Resultado</h2>
+      <div class="modal-prize" id="modalPrize">BONO 150%</div>
+      <p class="modal-message" id="modalMessage">Felicitaciones</p>
+      <button class="modal-btn" onclick="closeModal()">CONTINUAR</button>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // ✅ LOCAL STORAGE "PROPIO" (namespace del juego)
+    // ============================================================
+    const GAME_STORAGE_KEY = "spirita:vaso_esconde_dados:v1";
+
+    // 24 horas de cooldown (una vez por día)
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+    function loadGameState() {
+      try {
+        const raw = localStorage.getItem(GAME_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveGameState(patch) {
+      const curr = loadGameState();
+      const next = { ...curr, ...patch, updatedAt: Date.now() };
+      localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    }
+
+    // ============================================================
+    // ✅ AUDIO (3 sonidos)
+    // Reemplazá las rutas por tus archivos reales:
+    // ============================================================
+    const AUDIO = {
+      bg: new Audio('assets/bg.mp3'),
+      shuffle: new Audio('assets/shuffle.mp3'),
+      popup: new Audio('assets/popup.mp3')
+    };
+
+    AUDIO.bg.loop = true;
+    AUDIO.bg.volume = 0.35;
+
+    AUDIO.shuffle.loop = true;
+    AUDIO.shuffle.volume = 0.65;
+
+    AUDIO.popup.loop = false;
+    AUDIO.popup.volume = 0.9;
+
+    let audioEnabled = false;
+
+    function safePlay(audioEl) {
+      if (!audioEnabled) return;
+      try {
+        const p = audioEl.play();
+        if (p && typeof p.catch === 'function') p.catch(()=>{});
+      } catch (e) {}
+    }
+
+    function safeStop(audioEl) {
+      try {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+      } catch (e) {}
+    }
+
+    function enableAudioOnce() {
+      if (audioEnabled) return;
+      audioEnabled = true;
+      document.getElementById('audioHint').classList.remove('show');
+      safePlay(AUDIO.bg);
+    }
+
+    // -----------------------------
+    // Game State
+    // -----------------------------
+    let scene, camera, renderer;
+    let cups = [];
+    let dice = null;
+    let dicePosition = 1;
+    let gamePhase = 'idle'; // idle, showing, shuffling, selecting, revealing
+    let selectedCup = -1;
+    let raycaster, mouse;
+    let hoveredCup = -1;
+
+    let canPlay = true;
+
+    const PRIZE_WIN = 'BONO 150%';
+    const PRIZE_LOSE = 'BONO 100%';
+
+    // Cup positions
+    const cupPositions = [
+      { x: -3, z: 0 },
+      { x:  0, z: 0 },
+      { x:  3, z: 0 }
+    ];
+
+    // ✅ Cooldown: sin cartel/contador, solo bloquea el botón y muestra texto en status
+    function checkPlayAvailability() {
+      const st = loadGameState();
+      const lastPlay = Number(st.lastPlayedAt || 0);
+      const playBtn = document.getElementById('playBtn');
+
+      if (lastPlay && (Date.now() - lastPlay) < COOLDOWN_MS) {
+        canPlay = false;
+        playBtn.disabled = true;
+        playBtn.textContent = 'ESPERA';
+        updateStatus('Ya jugaste hoy. Volvé mañana para intentarlo de nuevo.');
+        return;
+      }
+
+      canPlay = true;
+      playBtn.disabled = false;
+      playBtn.textContent = 'JUGAR';
+      updateStatus('Presiona JUGAR para comenzar');
+    }
+
+    // Initialize loading
+    function initLoading() {
+      const loadingBar = document.getElementById('loadingBar');
+      const loadingText = document.getElementById('loadingText');
+      const loadingMessages = [
+        'Preparando la mesa...',
+        'Colocando los vasos...',
+        'Puliendo el dado...',
+        'Listo para jugar!'
+      ];
+
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += Math.random() * 15 + 5;
+
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(interval);
+          loadingText.textContent = loadingMessages[3];
+
+          setTimeout(() => {
+            document.getElementById('loadingScreen').classList.add('hidden');
+            document.getElementById('gameContainer').style.display = 'flex';
+
+            initGame();
+
+            if (!audioEnabled) document.getElementById('audioHint').classList.add('show');
+
+            // ✅ aplicar cooldown (sin cartel)
+            checkPlayAvailability();
+
+            // ✅ si recargó y ya tenía premio, se lo mostramos
+            maybeShowSavedPrize();
+
+          }, 500);
+        }
+
+        loadingBar.style.width = progress + '%';
+        loadingText.textContent = loadingMessages[Math.min(Math.floor(progress / 30), 3)];
+      }, 200);
+    }
+
+    // Create ambient particles
+    function createAmbientParticles() {
+      const container = document.getElementById('ambientParticles');
+      for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'ambient-particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.animationDelay = Math.random() * 8 + 's';
+        particle.style.animationDuration = (6 + Math.random() * 4) + 's';
+        container.appendChild(particle);
+      }
+    }
+
+    // Initialize Three.js
+    function initGame() {
+      const canvas = document.getElementById('game-canvas');
+      const gameArea = document.getElementById('gameArea');
+
+      scene = new THREE.Scene();
+
+      const aspect = gameArea.clientWidth / gameArea.clientHeight;
+      camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+      camera.position.set(0, 10, 10);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setSize(gameArea.clientWidth, gameArea.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+      const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      mainLight.position.set(5, 15, 5);
+      mainLight.castShadow = true;
+      mainLight.shadow.mapSize.width = 1024;
+      mainLight.shadow.mapSize.height = 1024;
+      scene.add(mainLight);
+
+      const fillLight = new THREE.DirectionalLight(0xd4af37, 0.3);
+      fillLight.position.set(-5, 10, -5);
+      scene.add(fillLight);
+
+      const spotlight = new THREE.SpotLight(0xd4af37, 0.5);
+      spotlight.position.set(0, 12, 0);
+      spotlight.angle = Math.PI / 4;
+      spotlight.penumbra = 0.5;
+      scene.add(spotlight);
+
+      // Table (shadows)
+      const table = new THREE.Mesh(
+        new THREE.PlaneGeometry(20, 20),
+        new THREE.ShadowMaterial({ opacity: 0.3 })
+      );
+      table.rotation.x = -Math.PI / 2;
+      table.position.y = -0.01;
+      table.receiveShadow = true;
+      scene.add(table);
+
+      createCups();
+      createDice();
+
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      canvas.addEventListener('click', onCanvasClick);
+      canvas.addEventListener('mousemove', onCanvasMove);
+      canvas.addEventListener('touchstart', onCanvasTouch, { passive: false });
+      window.addEventListener('resize', onWindowResize);
+
+      animate();
+    }
+
+    // Create cups
+    function createCups() {
+      cups = [];
+      for (let i = 0; i < 3; i++) {
+        const cupGroup = new THREE.Group();
+
+        const cup = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.6, 0.9, 2.2, 32),
+          new THREE.MeshPhongMaterial({
+            color: 0x8B0000,
+            specular: 0xffffff,
+            shininess: 80,
+            transparent: true,
+            opacity: 0.95
+          })
+        );
+        cup.castShadow = true;
+        cup.position.y = 1.1;
+        cupGroup.add(cup);
+
+        const goldMaterial = new THREE.MeshPhongMaterial({ color: 0xd4af37, specular: 0xffffff, shininess: 100 });
+
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 16, 32), goldMaterial);
+        rim.rotation.x = Math.PI / 2;
+        rim.position.y = 0.05;
+        cupGroup.add(rim);
+
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 16, 32), goldMaterial);
+        band.rotation.x = Math.PI / 2;
+        band.position.y = 1.5;
+        cupGroup.add(band);
+
+        const knob = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), goldMaterial);
+        knob.position.y = 2.35;
+        cupGroup.add(knob);
+
+        cupGroup.position.set(cupPositions[i].x, 0, cupPositions[i].z);
+        cupGroup.userData = { index: i };
+
+        scene.add(cupGroup);
+        cups.push(cupGroup);
+      }
+    }
+
+    // Create dice
+    function createDice() {
+      const diceGroup = new THREE.Group();
+
+      const diceBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.7, 0.7),
+        new THREE.MeshPhongMaterial({ color: 0xd4af37, specular: 0xffffff, shininess: 100 })
+      );
+      diceBody.castShadow = true;
+      diceGroup.add(diceBody);
+
+      const dotGeometry = new THREE.CircleGeometry(0.08, 16);
+      const dotMaterial = new THREE.MeshBasicMaterial({ color: 0x1a1a2e });
+
+      const dot1 = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot1.position.set(0, 0, 0.36);
+      diceGroup.add(dot1);
+
+      const positions6 = [
+        [-0.15, 0.2], [-0.15, 0], [-0.15, -0.2],
+        [0.15, 0.2], [0.15, 0], [0.15, -0.2]
+      ];
+      positions6.forEach(pos => {
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.position.set(pos[0], pos[1], -0.36);
+        dot.rotation.y = Math.PI;
+        diceGroup.add(dot);
+      });
+
+      const dot3a = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot3a.position.set(0.36, 0.15, 0.15);
+      dot3a.rotation.y = Math.PI / 2;
+      diceGroup.add(dot3a);
+
+      const dot3b = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot3b.position.set(0.36, 0, 0);
+      dot3b.rotation.y = Math.PI / 2;
+      diceGroup.add(dot3b);
+
+      const dot3c = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot3c.position.set(0.36, -0.15, -0.15);
+      dot3c.rotation.y = Math.PI / 2;
+      diceGroup.add(dot3c);
+
+      const positions4 = [[-0.15, 0.15], [0.15, 0.15], [-0.15, -0.15], [0.15, -0.15]];
+      positions4.forEach(pos => {
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.position.set(-0.36, pos[1], pos[0]);
+        dot.rotation.y = -Math.PI / 2;
+        diceGroup.add(dot);
+      });
+
+      const positions5 = [[0, 0], [-0.15, 0.15], [0.15, 0.15], [-0.15, -0.15], [0.15, -0.15]];
+      positions5.forEach(pos => {
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.position.set(pos[0], 0.36, pos[1]);
+        dot.rotation.x = -Math.PI / 2;
+        diceGroup.add(dot);
+      });
+
+      const dot2a = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot2a.position.set(-0.15, -0.36, -0.15);
+      dot2a.rotation.x = Math.PI / 2;
+      diceGroup.add(dot2a);
+
+      const dot2b = new THREE.Mesh(dotGeometry, dotMaterial);
+      dot2b.position.set(0.15, -0.36, 0.15);
+      dot2b.rotation.x = Math.PI / 2;
+      diceGroup.add(dot2b);
+
+      diceGroup.position.set(0, 0.35, 0);
+      diceGroup.visible = false;
+
+      scene.add(diceGroup);
+      dice = diceGroup;
+    }
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (dice && dice.visible) dice.rotation.y += 0.02;
+
+      cups.forEach((cup, index) => {
+        if (gamePhase === 'selecting') {
+          cup.scale.setScalar(index === hoveredCup ? 1.05 : 1);
+        } else {
+          cup.scale.setScalar(1);
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      const gameArea = document.getElementById('gameArea');
+      camera.aspect = gameArea.clientWidth / gameArea.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(gameArea.clientWidth, gameArea.clientHeight);
+    }
+
+    function onCanvasClick(event) {
+      if (gamePhase !== 'selecting') return;
+
+      const rect = event.target.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(cups, true);
+      if (intersects.length > 0) {
+        let cupGroup = intersects[0].object;
+        while (cupGroup.parent && !cupGroup.userData.hasOwnProperty('index')) cupGroup = cupGroup.parent;
+        if (cupGroup.userData.hasOwnProperty('index')) selectCup(cupGroup.userData.index);
+      }
+    }
+
+    function onCanvasMove(event) {
+      if (gamePhase !== 'selecting') { hoveredCup = -1; return; }
+
+      const rect = event.target.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(cups, true);
+      if (intersects.length > 0) {
+        let cupGroup = intersects[0].object;
+        while (cupGroup.parent && !cupGroup.userData.hasOwnProperty('index')) cupGroup = cupGroup.parent;
+        if (cupGroup.userData.hasOwnProperty('index')) {
+          hoveredCup = cupGroup.userData.index;
+          document.body.style.cursor = 'pointer';
+        }
+      } else {
+        hoveredCup = -1;
+        document.body.style.cursor = 'default';
+      }
+    }
+
+    function onCanvasTouch(event) {
+      if (gamePhase !== 'selecting') return;
+      event.preventDefault();
+
+      const rect = event.target.getBoundingClientRect();
+      const touch = event.touches[0];
+      mouse.x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(cups, true);
+      if (intersects.length > 0) {
+        let cupGroup = intersects[0].object;
+        while (cupGroup.parent && !cupGroup.userData.hasOwnProperty('index')) cupGroup = cupGroup.parent;
+        if (cupGroup.userData.hasOwnProperty('index')) selectCup(cupGroup.userData.index);
+      }
+    }
+
+    // Start game (CON cooldown)
+    function startGame() {
+      if (!canPlay || gamePhase !== 'idle') return;
+
+      document.getElementById('playBtn').disabled = true;
+      gamePhase = 'showing';
+      updateStatus('Observa donde esta el dado...');
+
+      dicePosition = Math.floor(Math.random() * 3);
+      dice.position.x = cupPositions[dicePosition].x;
+      dice.position.z = cupPositions[dicePosition].z;
+      dice.visible = true;
+
+      liftAllCups(() => {
+        setTimeout(() => {
+          lowerAllCups(() => {
+            setTimeout(() => startShuffling(), 500);
+          });
+        }, 2000);
+      });
+    }
+
+    function liftAllCups(callback) {
+      const duration = 800;
+      const startTime = Date.now();
+
+      function step() {
+        const progress = Math.min((Date.now() - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        cups.forEach(c => c.position.y = ease * 3);
+        if (progress < 1) requestAnimationFrame(step);
+        else callback && callback();
+      }
+      step();
+    }
+
+    function lowerAllCups(callback) {
+      const duration = 600;
+      const startTime = Date.now();
+
+      function step() {
+        const progress = Math.min((Date.now() - startTime) / duration, 1);
+        const ease = Math.pow(progress, 2);
+        cups.forEach(c => c.position.y = 3 * (1 - ease));
+        dice.visible = false;
+        if (progress < 1) requestAnimationFrame(step);
+        else callback && callback();
+      }
+      step();
+    }
+
+    function startShuffling() {
+      gamePhase = 'shuffling';
+      updateStatus('Sigue el dado con la mirada...');
+
+      safeStop(AUDIO.shuffle);
+      safePlay(AUDIO.shuffle);
+
+      const shuffleCount = 8 + Math.floor(Math.random() * 5);
+      let currentShuffle = 0;
+
+      function doShuffle() {
+        if (currentShuffle >= shuffleCount) {
+          safeStop(AUDIO.shuffle);
+
+          gamePhase = 'selecting';
+          updateStatus('Selecciona el vaso correcto!');
+          document.getElementById('cupHighlight').classList.add('visible');
+          return;
+        }
+
+        const i1 = Math.floor(Math.random() * 3);
+        let i2 = Math.floor(Math.random() * 3);
+        while (i2 === i1) i2 = Math.floor(Math.random() * 3);
+
+        if (dicePosition === i1) dicePosition = i2;
+        else if (dicePosition === i2) dicePosition = i1;
+
+        swapCups(i1, i2, () => {
+          currentShuffle++;
+          setTimeout(doShuffle, 100);
+        });
+      }
+
+      doShuffle();
+    }
+
+    function swapCups(index1, index2, callback) {
+      const cup1 = cups[index1];
+      const cup2 = cups[index2];
+
+      const pos1 = { x: cup1.position.x, z: cup1.position.z };
+      const pos2 = { x: cup2.position.x, z: cup2.position.z };
+
+      const duration = 300;
+      const startTime = Date.now();
+
+      function step() {
+        const progress = Math.min((Date.now() - startTime) / duration, 1);
+        const ease = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+
+        cup1.position.x = pos1.x + (pos2.x - pos1.x) * ease;
+        cup1.position.z = pos1.z + (pos2.z - pos1.z) * ease;
+
+        cup2.position.x = pos2.x + (pos1.x - pos2.x) * ease;
+        cup2.position.z = pos2.z + (pos1.z - pos2.z) * ease;
+
+        const arc = 0.5 * Math.sin(progress * Math.PI);
+        cup1.position.y = arc;
+        cup2.position.y = arc;
+
+        if (progress < 1) requestAnimationFrame(step);
+        else {
+          [cups[index1], cups[index2]] = [cups[index2], cups[index1]];
+          cups[index1].userData.index = index1;
+          cups[index2].userData.index = index2;
+          callback && callback();
+        }
+      }
+      step();
+    }
+
+    function selectCup(index) {
+      if (gamePhase !== 'selecting') return;
+
+      gamePhase = 'revealing';
+      selectedCup = index;
+      document.getElementById('cupHighlight').classList.remove('visible');
+
+      const isWin = (index === dicePosition);
+
+      dice.position.x = cups[dicePosition].position.x;
+      dice.position.z = cups[dicePosition].position.z;
+
+      liftCup(index, () => {
+        if (isWin) dice.visible = true;
+
+        setTimeout(() => {
+          liftAllCupsReveal(() => {
+            dice.visible = true;
+            setTimeout(() => showResult(isWin), 1500);
+          });
+        }, 1000);
+      });
+    }
+
+    function liftCup(index, callback) {
+      const cup = cups[index];
+      const duration = 500;
+      const startTime = Date.now();
+
+      function step() {
+        const progress = Math.min((Date.now() - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        cup.position.y = ease * 3;
+        if (progress < 1) requestAnimationFrame(step);
+        else callback && callback();
+      }
+      step();
+    }
+
+    function liftAllCupsReveal(callback) {
+      const duration = 600;
+      const startTime = Date.now();
+
+      function step() {
+        const progress = Math.min((Date.now() - startTime) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        cups.forEach((cup, i) => {
+          if (i !== selectedCup) cup.position.y = ease * 3;
+        });
+
+        if (progress < 1) requestAnimationFrame(step);
+        else callback && callback();
+      }
+      step();
+    }
+
+    // Show result + guardar en storage propio del juego (y bloquear 24hs)
+    function showResult(isWin, fromReload = false) {
+      const modal = document.getElementById('resultModal');
+      const icon = document.getElementById('modalIcon');
+      const title = document.getElementById('modalTitle');
+      const prize = document.getElementById('modalPrize');
+      const message = document.getElementById('modalMessage');
+
+      safeStop(AUDIO.popup);
+      safePlay(AUDIO.popup);
+
+      if (isWin) {
+        icon.textContent = '🎯';
+        title.textContent = 'ACERTASTE!';
+        prize.textContent = PRIZE_WIN;
+        message.textContent = fromReload ? 'Este fue tu último premio guardado.' : 'Excelente ojo! Has encontrado el dado dorado.';
+        if (!fromReload) createConfetti();
+      } else {
+        icon.textContent = '🎁';
+        title.textContent = 'CASI!';
+        prize.textContent = PRIZE_LOSE;
+        message.textContent = fromReload ? 'Este fue tu último premio guardado.' : 'No te preocupes, igual tienes un premio de consolacion!';
+      }
+
+      modal.classList.add('active');
+
+      // ✅ SOLO si es un resultado real (no el "desde recarga"), bloqueamos el día
+      if (!fromReload) {
+        saveGameState({
+          lastPrize: isWin ? PRIZE_WIN : PRIZE_LOSE,
+          lastResult: isWin ? 'win' : 'lose',
+          lastPlayedAt: Date.now()
+        });
+        canPlay = false;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('resultModal').classList.remove('active');
+      resetGame();
+      checkPlayAvailability(); // vuelve a aplicar bloqueo si ya jugó
+    }
+
+    function resetGame() {
+      gamePhase = 'idle';
+      selectedCup = -1;
+      dice.visible = false;
+
+      cups.forEach((cup, i) => {
+        cup.position.set(cupPositions[i].x, 0, cupPositions[i].z);
+        cup.userData.index = i;
+      });
+
+      // el botón lo maneja checkPlayAvailability()
+    }
+
+    function maybeShowSavedPrize() {
+      const st = loadGameState();
+      if (!st.lastResult) return;
+
+      // mostrar premio guardado sin disparar cooldown
+      setTimeout(() => showResult(st.lastResult === 'win', true), 600);
+    }
+
+    function updateStatus(text) {
+      document.getElementById('statusDisplay').textContent = text;
+    }
+
+    function createConfetti() {
+      const colors = ['#d4af37', '#f4d03f', '#1a5c1a', '#8B0000', '#ffffff'];
+      for (let i = 0; i < 100; i++) {
+        const confetti = document.createElement('div');
+        confetti.className = 'confetti';
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.width = (Math.random() * 10 + 5) + 'px';
+        confetti.style.height = confetti.style.width;
+        confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        confetti.style.animation = `confettiFall ${2 + Math.random() * 2}s linear forwards`;
+        confetti.style.animationDelay = Math.random() * 0.5 + 's';
+        document.body.appendChild(confetti);
+        setTimeout(() => confetti.remove(), 4000);
+      }
+    }
+
+    // Confetti animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes confettiFall {
+        0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Event listeners
+    document.getElementById('playBtn').addEventListener('click', startGame);
+
+    // Audio unlock (mobile)
+    window.addEventListener('pointerdown', enableAudioOnce, { once: true });
+    window.addEventListener('touchstart', enableAudioOnce, { once: true });
+
+    document.getElementById('playBtn').addEventListener('click', () => {
+      if (!audioEnabled) enableAudioOnce();
+      safePlay(AUDIO.bg);
+    });
+
+    // Initialize
+    createAmbientParticles();
+    initLoading();
+  </script>
+</body>
+</html>
